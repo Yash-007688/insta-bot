@@ -555,7 +555,7 @@ start_command_session(cl)
 
 while True:
     try:
-    inbox = cl.direct_threads(amount=5)  # fetch recent 5 threads
+        inbox = cl.direct_threads(amount=5)  # fetch recent 5 threads
     except (ClientConnectionError, requests.exceptions.RequestException) as e:
         print(f"Inbox fetch error: {e}")
         time.sleep(30)

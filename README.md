@@ -99,3 +99,28 @@ Create these text files in the same folder; the bot will read and clear them eac
 - Use your own account at your own risk.
 
 
+
+### Screenshots
+Add screenshots of key actions to help others see expected behavior. Save images in `screenshots/` and reference them below.
+
+- Login prompt and environment setup
+  - ![Login prompt](screenshots/login.png)
+- Interactive commands in terminal (e.g., liking latest reel, following)
+  - ![Terminal commands](screenshots/commands.png)
+- DM processing output
+  - ![DM processing](screenshots/dms.png)
+- Queue processing (follow/unfollow/like/comment/post)
+  - ![Queue processing](screenshots/queues.png)
+- Downloaded media folders
+  - ![Downloads](screenshots/downloads.png)
+
+Notes for capturing screenshots:
+- Redact any personal information before committing images.
+- Do not commit real credentials. Set them via environment variables locally:
+  ```bash
+  export IG_USERNAME="thecodedevpro"
+  export IG_PASSWORD="<your_password_here>"
+  python insta.py
+  ```
+  Or put them in a local `.env` which is not committed.
+
