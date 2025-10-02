@@ -142,8 +142,21 @@ if username_env and password_env and current_ip:
 if not username or not password:
     print("Missing credentials. Provide .env (IG_USERNAME/IG_PASSWORD) or secrets.json.")
     raise SystemExit(1)
+
 cl = Client()
 cl.login(username, password)
+
+# Create user-specific download path based on username and IP
+def get_user_download_path(content_type, target_username=None):
+    """Create organized download path: downloads/{content_type}/{logged_in_user}_{ip}/{target_username}/"""
+    logged_user = username.replace(".", "_").replace("@", "")
+    ip_suffix = (current_ip or "unknown").replace(".", "_")
+    user_folder = f"{logged_user}_{ip_suffix}"
+    
+    if target_username:
+        return Path("downloads") / content_type / user_folder / target_username.lstrip("@")
+    else:
+        return Path("downloads") / content_type / user_folder
 
 # Track last seen message IDs
 seen_messages = set()
@@ -450,7 +463,7 @@ def download_stories_of_username(api_client, username):
         if not stories:
             print(f"No active stories for {uname}")
             return
-        out_dir = Path("downloads") / "stories" / uname
+        out_dir = get_user_download_path("stories", uname)
         out_dir.mkdir(parents=True, exist_ok=True)
         downloaded = 0
         for story in stories:
@@ -476,7 +489,7 @@ def download_latest_reel_of_username(api_client, username):
             print(f"No reels found for {uname}")
             return
         latest = sorted(medias, key=lambda m: getattr(m, "taken_at", None) or 0, reverse=True)[0]
-        out_dir = Path("downloads") / "reels" / uname
+        out_dir = get_user_download_path("reels", uname)
         out_dir.mkdir(parents=True, exist_ok=True)
         api_client.clip_download(latest.id, filename=str(out_dir))
         print(f"Downloaded latest reel of {uname} into {out_dir}")
@@ -493,7 +506,7 @@ def download_latest_post_of_username(api_client, username):
             print(f"No posts found for {uname}")
             return
         latest = sorted(medias, key=lambda m: getattr(m, "taken_at", None) or 0, reverse=True)[0]
-        out_dir = Path("downloads") / "posts" / uname
+        out_dir = get_user_download_path("posts", uname)
         out_dir.mkdir(parents=True, exist_ok=True)
         # Choose download based on media type
         try:
