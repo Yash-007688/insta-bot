@@ -534,6 +534,12 @@ def try_parse_and_execute_commands(api_client, text):
         like_posts_from_location(api_client, location, amount)
         return True
     
+    # Add profile picture download command
+    m = re.search(r"download\s+profile\s+picture\s+of\s+@([A-Za-z0-9._]+)$", t, flags=re.IGNORECASE)
+    if m:
+        download_profile_picture(api_client, m.group(1))
+        return True
+    
     return False
 
 def send_dm_to_username(api_client, username, message_text):
@@ -681,6 +687,42 @@ def show_recent_dms(api_client, threads_amount=5):
                     print(f"Skip malformed message: {inner_e}")
         except Exception as e:
             print(f"Error reading a thread: {e}")
+
+def download_profile_picture(api_client, username):
+    """Download profile picture of a user"""
+    try:
+        uname = username.lstrip("@")
+        user_info = api_client.user_info_by_username(uname)
+        
+        # Get the profile picture URL (HD version)
+        profile_pic_url = user_info.profile_pic_url_hd
+        
+        # Create download directory
+        out_dir = get_user_download_path("profile_pictures", uname)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Download the profile picture
+        response = requests.get(profile_pic_url)
+        if response.status_code == 200:
+            # Determine file extension from URL or default to .jpg
+            if profile_pic_url.endswith('.jpg') or profile_pic_url.endswith('.jpeg'):
+                ext = '.jpg'
+            elif profile_pic_url.endswith('.png'):
+                ext = '.png'
+            else:
+                ext = '.jpg'  # default
+            
+            filename = str(out_dir / f"{uname}_profile{ext}")
+            with open(filename, "wb") as f:
+                f.write(response.content)
+            print(f"✓ Profile picture downloaded to: {filename}")
+            return True
+        else:
+            print(f"✗ Failed to download profile picture for {uname} (HTTP {response.status_code})")
+            return False
+    except Exception as e:
+        print(f"✗ Profile picture download failed for {username}: {e}")
+        return False
 
 def print_usage():
     """Print usage instructions"""

@@ -309,7 +309,6 @@ def process_follow_queue(api_client):
         except Exception as e:
             print(f"Follow failed for {uname}: {e}")
 
-
 def process_unfollow_queue(api_client):
     usernames = process_queue_file("unfollow_queue.txt")
     for uname in usernames:
@@ -319,31 +318,6 @@ def process_unfollow_queue(api_client):
             print(f"Unfollowed: {uname}")
         except Exception as e:
             print(f"Unfollow failed for {uname}: {e}")
-
-
-def bulk_follow(api_client, usernames, delay=2):
-    """Follow multiple accounts from a list"""
-    for uname in usernames:
-        try:
-            user_id = get_user_id_from_username(api_client, uname)
-            api_client.user_follow(user_id)
-            print(f"Followed: {uname}")
-            time.sleep(delay)  # Be respectful with delays
-        except Exception as e:
-            print(f"Follow failed for {uname}: {e}")
-
-
-def bulk_unfollow(api_client, usernames, delay=2):
-    """Unfollow multiple accounts from a list"""
-    for uname in usernames:
-        try:
-            user_id = get_user_id_from_username(api_client, uname)
-            api_client.user_unfollow(user_id)
-            print(f"Unfollowed: {uname}")
-            time.sleep(delay)  # Be respectful with delays
-        except Exception as e:
-            print(f"Unfollow failed for {uname}: {e}")
-
 
 def process_like_queue(api_client):
     urls = process_queue_file("like_queue.txt")
@@ -559,36 +533,13 @@ def try_parse_and_execute_commands(api_client, text):
         amount = int(m.group(2)) if m.group(2) else 10
         like_posts_from_location(api_client, location, amount)
         return True
-
-    # Auto-comment with smart filters
-    m = re.search(r"auto\s+comment\s+on\s+hashtag\s+(\w+)\s+with\s+(.+)", t, flags=re.IGNORECASE)
+    
+    # Add profile picture download command
+    m = re.search(r"download\s+profile\s+picture\s+of\s+@([A-Za-z0-9._]+)$", t, flags=re.IGNORECASE)
     if m:
-        hashtag = m.group(1)
-        comment_text = m.group(2).strip()
-        auto_comment_on_hashtag(api_client, hashtag, comment_text)
+        download_profile_picture(api_client, m.group(1))
         return True
-
-    # Content scheduling
-    m = re.search(r"scheduled\s+post\s+([0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2})\s+(photo|reel|video)\s+(.+)", t, flags=re.IGNORECASE)
-    if m:
-        scheduled_time_str = m.group(1)
-        post_type = m.group(2)
-        post_details = m.group(3).strip()
-        schedule_post(api_client, scheduled_time_str, post_type, post_details)
-        return True
-
-    # Story interaction
-    m = re.search(r"like\s+stories\s+of\s+@(\w+)", t, flags=re.IGNORECASE)
-    if m:
-        username = m.group(1)
-        like_stories_of_user(api_client, username)
-        return True
-
-    # Analytics
-    if t.lower() == "get analytics" or t.lower() == "analytics":
-        get_analytics(api_client)
-        return True
-
+    
     return False
 
 def send_dm_to_username(api_client, username, message_text):
@@ -617,14 +568,7 @@ def _command_session_loop(api_client):
             print(
                 "Commands: follow <username> | unfollow <username> | "
                 "like the latest reel of <username> | "
-                "write <message> to <username> | "
-                "like posts from hashtag <hashtag> <count> | "
-                "follow from hashtag <hashtag> <count> | "
-                "like posts from location <location> <count> | "
-                "auto comment on hashtag <hashtag> with <comment> | "
-                "like stories of <username> | "
-                "analytics | "
-                "scheduled post YYYY-MM-DD HH:MM (photo|reel|video) <details>"
+                "write <message> to <username>"
             )
             continue
         handled = try_parse_and_execute_commands(api_client, line)
@@ -744,223 +688,41 @@ def show_recent_dms(api_client, threads_amount=5):
         except Exception as e:
             print(f"Error reading a thread: {e}")
 
-def like_posts_from_hashtag(api_client, hashtag, amount=10):
-    try:
-        print(f"Liking {amount} recent posts from #{hashtag}")
-        medias = api_client.hashtag_medias_recent(hashtag, amount=amount)
-        liked_count = 0
-        for media in medias:
-            try:
-                api_client.media_like(media.id)
-                print(f"Liked post from @{getattr(media.user, 'username', 'unknown')}")
-                liked_count += 1
-                time.sleep(2)  # Be respectful with delays
-            except Exception as e:
-                print(f"Failed to like post: {e}")
-        print(f"Successfully liked {liked_count} posts from #{hashtag}")
-    except Exception as e:
-        print(f"Failed to like posts from #{hashtag}: {e}")
-
-
-def follow_from_hashtag(api_client, hashtag, amount=10):
-    try:
-        print(f"Following {amount} accounts from #{hashtag}")
-        medias = api_client.hashtag_medias_recent(hashtag, amount=amount)
-        followed_count = 0
-        for media in medias:
-            try:
-                user_id = media.user.pk
-                api_client.user_follow(user_id)
-                print(f"Followed @{getattr(media.user, 'username', 'unknown')}")
-                followed_count += 1
-                time.sleep(3)  # Be respectful with delays
-            except Exception as e:
-                print(f"Failed to follow user: {e}")
-        print(f"Successfully followed {followed_count} accounts from #{hashtag}")
-    except Exception as e:
-        print(f"Failed to follow from #{hashtag}: {e}")
-
-
-def like_posts_from_location(api_client, location, amount=10):
-    try:
-        print(f"Liking {amount} recent posts from location {location}")
-        # Try to get location ID from name
-        locations = api_client.locations_search(location)
-        if not locations:
-            print(f"No location found for {location}")
-            return
-        location_id = locations[0].pk
-        
-        medias = api_client.location_medias_recent(location_id, amount=amount)
-        liked_count = 0
-        for media in medias:
-            try:
-                api_client.media_like(media.id)
-                print(f"Liked post from @{getattr(media.user, 'username', 'unknown')}")
-                liked_count += 1
-                time.sleep(2)  # Be respectful with delays
-            except Exception as e:
-                print(f"Failed to like post: {e}")
-        print(f"Successfully liked {liked_count} posts from {location}")
-    except Exception as e:
-        print(f"Failed to like posts from {location}: {e}")
-
-
-def auto_comment_on_hashtag(api_client, hashtag, comment_text, amount=10):
-    try:
-        print(f"Auto-commenting '{comment_text}' on {amount} recent posts from #{hashtag}")
-        medias = api_client.hashtag_medias_recent(hashtag, amount=amount)
-        commented_count = 0
-        for media in medias:
-            try:
-                # Apply smart filtering - avoid commenting on posts that contain certain words
-                caption = getattr(media.caption_text, 'lower', str(media.caption_text).lower)() if media.caption_text else ""
-                
-                # Skip if the post contains spam indicators
-                spam_indicators = ['spam', 'buy now', 'click here', 'free money', 'urgent']
-                if any(indicator in caption for indicator in spam_indicators):
-                    print(f"Skipped commenting on post with spam indicators")
-                    continue
-                
-                api_client.media_comment(media.id, comment_text)
-                print(f"Commented '{comment_text}' on post from @{getattr(media.user, 'username', 'unknown')}")
-                commented_count += 1
-                time.sleep(5)  # Longer delay for comments to avoid rate limiting
-            except Exception as e:
-                print(f"Failed to comment on post: {e}")
-        print(f"Successfully commented on {commented_count} posts from #{hashtag}")
-    except Exception as e:
-        print(f"Failed to auto-comment on #{hashtag}: {e}")
-
-
-def schedule_post(api_client, scheduled_time_str, post_type, post_details):
-    """
-    Schedule a post to be uploaded at a specific time
-    Note: Actual scheduling would require external scheduler like cron or APScheduler
-    This function saves the post to a queue file for later processing
-    """
-    try:
-        from datetime import datetime
-        scheduled_time = datetime.strptime(scheduled_time_str, "%Y-%m-%d %H:%M")
-        
-        # Save to scheduled posts file
-        scheduled_post_data = f"{scheduled_time_str}|{post_type}|{post_details}\n"
-        with open("scheduled_posts.txt", "a", encoding="utf-8") as f:
-            f.write(scheduled_post_data)
-        
-        print(f"Post scheduled for {scheduled_time_str}: {post_type} - {post_details}")
-    except Exception as e:
-        print(f"Failed to schedule post: {e}")
-
-
-def like_stories_of_user(api_client, username):
-    """Like all stories of a specific user"""
+def download_profile_picture(api_client, username):
+    """Download profile picture of a user"""
     try:
         uname = username.lstrip("@")
-        user_id = get_user_id_from_username(api_client, uname)
-        stories = api_client.user_stories(user_id)
+        user_info = api_client.user_info_by_username(uname)
         
-        if not stories:
-            print(f"No active stories for {uname}")
-            return
+        # Get the profile picture URL (HD version)
+        profile_pic_url = user_info.profile_pic_url_hd
         
-        liked_count = 0
-        for story in stories:
-            try:
-                api_client.story_like(story.id)
-                print(f"Liked story from @{uname}")
-                liked_count += 1
-                time.sleep(1)  # Short delay between likes
-            except Exception as e:
-                print(f"Failed to like story: {e}")
+        # Create download directory
+        out_dir = get_user_download_path("profile_pictures", uname)
+        out_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f"Liked {liked_count} stories from @{uname}")
-    except Exception as e:
-        print(f"Failed to like stories from {username}: {e}")
-
-
-def get_analytics(api_client):
-    """Get basic analytics for the account"""
-    try:
-        # Get account info
-        account_info = api_client.account_info()
-        
-        # Get followers/following count
-        user_followers = api_client.user_followers(account_info.pk)
-        user_following = api_client.user_following(account_info.pk)
-        
-        print("=== Account Analytics ===")
-        print(f"Username: @{account_info.username}")
-        print(f"Full Name: {account_info.full_name}")
-        print(f"Followers: {len(user_followers)}")
-        print(f"Following: {len(user_following)}")
-        print(f"Media Count: {account_info.media_count}")
-        print(f"Is Private: {account_info.is_private}")
-        print("=========================")
-        
-    except Exception as e:
-        print(f"Failed to get analytics: {e}")
-
-
-def process_scheduled_posts(api_client):
-    """Process scheduled posts that are ready to be posted"""
-    try:
-        import os
-        from datetime import datetime
-        
-        if not os.path.exists("scheduled_posts.txt"):
-            return
+        # Download the profile picture
+        response = requests.get(str(profile_pic_url))
+        if response.status_code == 200:
+            # Determine file extension from URL or default to .jpg
+            if str(profile_pic_url).endswith('.jpg') or str(profile_pic_url).endswith('.jpeg'):
+                ext = '.jpg'
+            elif str(profile_pic_url).endswith('.png'):
+                ext = '.png'
+            else:
+                ext = '.jpg'  # default
             
-        # Read scheduled posts
-        with open("scheduled_posts.txt", "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            
-        # Filter out empty lines
-        lines = [line.strip() for line in lines if line.strip()]
-        
-        # Get current time
-        now = datetime.now()
-        
-        # Process posts that are scheduled for the past/current time
-        remaining_lines = []
-        for line in lines:
-            parts = line.split("|", 2)
-            if len(parts) != 3:
-                remaining_lines.append(line)
-                continue
-                
-            scheduled_time_str, post_type, post_details = parts
-            try:
-                scheduled_time = datetime.strptime(scheduled_time_str, "%Y-%m-%d %H:%M")
-                
-                if scheduled_time <= now:
-                    # Time to post!
-                    print(f"Posting scheduled {post_type}: {post_details}")
-                    
-                    # Post based on type
-                    if post_type == "photo":
-                        api_client.photo_upload(post_details.split("|")[0], caption=post_details.split("|")[1] if "|" in post_details else "")
-                    elif post_type == "reel":
-                        api_client.clip_upload(post_details.split("|")[0], caption=post_details.split("|")[1] if "|" in post_details else "")
-                    elif post_type == "video":
-                        api_client.video_upload(post_details.split("|")[0], caption=post_details.split("|")[1] if "|" in post_details else "")
-                    
-                    print(f"Scheduled {post_type} posted successfully!")
-                else:
-                    # Keep for future posting
-                    remaining_lines.append(line)
-            except ValueError:
-                # Invalid date format, keep the line
-                remaining_lines.append(line)
-        
-        # Write back remaining scheduled posts
-        with open("scheduled_posts.txt", "w", encoding="utf-8") as f:
-            for line in remaining_lines:
-                f.write(line + "\n")
-                
+            filename = str(out_dir / f"{uname}_profile{ext}")
+            with open(filename, "wb") as f:
+                f.write(response.content)
+            print(f"✓ Profile picture downloaded to: {filename}")
+            return True
+        else:
+            print(f"✗ Failed to download profile picture for {uname} (HTTP {response.status_code})")
+            return False
     except Exception as e:
-        print(f"Failed to process scheduled posts: {e}")
-
+        print(f"✗ Profile picture download failed for {username}: {e}")
+        return False
 
 def print_usage():
     """Print usage instructions"""
@@ -977,7 +739,6 @@ def print_usage():
     print("\nBot Mode (default):")
     print("  python insta.py                 - Start bot (monitors DMs and queues)")
     print("="*60 + "\n")
-
 
 # Check for command line arguments
 if len(sys.argv) > 1:
@@ -1040,8 +801,5 @@ while True:
     process_like_queue(cl)
     process_comment_queue(cl)
     process_post_queue(cl)
-    
-    # Process scheduled posts
-    process_scheduled_posts(cl)
     
     time.sleep(30)  # check every 30 sec
